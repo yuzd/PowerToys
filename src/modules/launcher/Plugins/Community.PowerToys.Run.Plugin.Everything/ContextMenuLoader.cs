@@ -1,10 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
 using System.IO.Abstractions;
 using System.Reflection;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Shapes;
 using Community.PowerToys.Run.Plugin.Everything.SearchHelper;
 using Wox.Infrastructure;
 using Wox.Plugin;
@@ -32,6 +35,8 @@ namespace Community.PowerToys.Run.Plugin.Everything
             _context = context;
         }
 
+        //https://github.com/MicrosoftDocs/windows-uwp/blob/docs/hub/apps/design/style/segoe-fluent-icons-font.md
+        //https://docs.microsoft.com/en-us/windows/apps/design/style/segoe-ui-symbol-font
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "We want to keep the process alive, and instead log and show an error message")]
         public List<ContextMenuResult> LoadContextMenus(Result selectedResult)
         {
@@ -49,6 +54,11 @@ namespace Community.PowerToys.Run.Plugin.Everything
                 if (CanFileBeRunAsAdmin(record.FullPath))
                 {
                     contextMenus.Add(CreateRunAsAdminContextMenu(record));
+                }
+
+                if (CanRunIdea(record.FullPath))
+                {
+                    contextMenus.Add(CreateRunIdeaContextMenu(record));
                 }
 
                 contextMenus.Add(new ContextMenuResult
@@ -141,6 +151,80 @@ namespace Community.PowerToys.Run.Plugin.Everything
             };
         }
 
+
+        // Function to add the context menu item to run as admin
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "We want to keep the process alive, and instead log the exception message")]
+        private static ContextMenuResult CreateRunIdeaContextMenu(SearchResult record)
+        {
+            return new ContextMenuResult
+            {
+                PluginName = Assembly.GetExecutingAssembly().GetName().Name,
+                Title = Properties.Resources.Community_plugin_everything_run_as_idea,
+                Glyph = "\xEC58",
+                FontFamily = "Segoe MDL2 Assets",
+                AcceleratorKey = Key.F1,
+                AcceleratorModifiers = ModifierKeys.Windows,
+                Action = _ =>
+                {
+                    try
+                    {
+                        Task.Run(() => {
+                            var idea = Environment.GetEnvironmentVariable("idea");
+                            if (string.IsNullOrEmpty(idea))
+                            {
+                                RunCommand($"idea \"{record.FullPath}\"", record.FullPath);
+                            }
+                            else
+                            {
+                                RunCommand($"\"{idea}\" \"{record.FullPath}\"", record.FullPath);
+                            }
+                        });
+                        return true;
+                    }
+                    catch (System.Exception e)
+                    {
+                        Log.Exception($"Failed to run {record.FullPath} as idea, {e.Message}", e, MethodBase.GetCurrentMethod().DeclaringType);
+                        return false;
+                    }
+                },
+            };
+        }
+
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "Suppressing this to enable FxCop. We are logging the exception, and going forward general exceptions should not be caught")]
+        public static void RunCommand(string commandToRun, string workDir = null)
+        {
+            try
+            {
+                if (workDir != null)
+                {
+                    if (File.Exists(workDir))
+                    {
+                        workDir = new FileSystem().Path.GetDirectoryName(workDir);
+                    }
+                }
+
+                var processStartInfo = new ProcessStartInfo()
+                {
+                    FileName = "cmd",
+                    RedirectStandardOutput = false,
+                    RedirectStandardInput = true,
+                    UseShellExecute = false,
+                    WorkingDirectory = workDir ?? Directory.GetDirectoryRoot(Directory.GetCurrentDirectory()),
+                    WindowStyle = ProcessWindowStyle.Hidden,
+                    CreateNoWindow = true,
+                };
+                var process = Process.Start(processStartInfo);
+
+                process.StandardInput.WriteLine($"{commandToRun}");
+                process.WaitForExit(2000);
+                process.Dispose();
+            }
+            catch (System.Exception ex)
+            {
+                Log.Exception($"Unable to Run {commandToRun} : {ex.Message}", ex, MethodBase.GetCurrentMethod().DeclaringType);
+            }
+        }
+
         // Function to test if the file can be run as admin
         private bool CanFileBeRunAsAdmin(string path)
         {
@@ -152,6 +236,28 @@ namespace Community.PowerToys.Run.Plugin.Everything
                 {
                     return true;
                 }
+            }
+
+            return false;
+        }
+
+        public static bool CanRunIdea(string path)
+        {
+            if (File.Exists(path))
+            {
+                return path.EndsWith("pom.xml");
+            }
+
+            var buildGradleFile = System.IO.Path.Combine(path, "build.gradle");
+            if (File.Exists(buildGradleFile))
+            {
+                return true;
+            }
+
+            var pomFile = System.IO.Path.Combine(path, "pom.xml");
+            if (File.Exists(pomFile))
+            {
+                return true;
             }
 
             return false;

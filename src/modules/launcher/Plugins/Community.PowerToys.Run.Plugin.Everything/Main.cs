@@ -171,12 +171,15 @@ namespace Community.PowerToys.Run.Plugin.Everything
             var toolTipTitle = string.Format(CultureInfo.CurrentCulture, "{0} : {1}", Properties.Resources.Community_plugin_everything_name, searchResult.FileName);
             var toolTipText = string.Format(CultureInfo.CurrentCulture, "{0} : {1}", Properties.Resources.Community_plugin_everything_path, searchResult.FullPath);
 
+            var isIdea = ContextMenuLoader.CanRunIdea(path);
+            var prefix = isIdea ? Properties.Resources.Community_plugin_everything_idea : Properties.Resources.Community_plugin_everything_subtitle_header;
+
             var r = new Result(searchResult.FileNameHightData, searchResult.FullPathHightData)
             {
                 Score = _settings.MaxSearchCount - index,
                 Title = searchResult.FileName,
-                SubTitle = Properties.Resources.Community_plugin_everything_subtitle_header + ": " + searchResult.FullPath,
-                IcoPath = searchResult.FullPath,
+                SubTitle = prefix + ": " + searchResult.FullPath,
+                IcoPath = isIdea ? "Images\\idea.png" : searchResult.FullPath,
                 ToolTipData = new ToolTipData(toolTipTitle, toolTipText),
                 ContextData = searchResult,
                 Action = _ =>

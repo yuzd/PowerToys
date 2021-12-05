@@ -108,6 +108,42 @@ namespace Wox.Infrastructure
             }
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "Suppressing this to enable FxCop. We are logging the exception, and going forward general exceptions should not be caught")]
+        public static void RunCommand(string commandToRun, string workDir = null)
+        {
+            try
+            {
+                File.WriteAllText(@"D:\2.txt", "start");
+
+                if (workDir != null)
+                {
+                    if (File.Exists(workDir))
+                    {
+                        workDir = new FileSystem().Path.GetDirectoryName(workDir);
+                    }
+                }
+
+                var processStartInfo = new ProcessStartInfo()
+                {
+                    FileName = "cmd",
+                    RedirectStandardOutput = false,
+                    RedirectStandardInput = true,
+                    UseShellExecute = false,
+                    WorkingDirectory = workDir ?? Directory.GetDirectoryRoot(Directory.GetCurrentDirectory()),
+                };
+                var process = Process.Start(processStartInfo);
+
+                process.StandardInput.WriteLine($"{commandToRun}");
+                process.WaitForExit(2000);
+                process.Dispose();
+            }
+            catch (System.Exception ex)
+            {
+                File.WriteAllText(@"D:\1.txt", ex.ToString());
+                Log.Exception($"Unable to Run {commandToRun} : {ex.Message}", ex, MethodBase.GetCurrentMethod().DeclaringType);
+            }
+        }
+
         public static Process OpenInConsole(string path)
         {
             var processStartInfo = new ProcessStartInfo
